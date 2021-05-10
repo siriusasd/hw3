@@ -24,12 +24,14 @@ DigitalOut myled1(LED1);
 DigitalOut myled2(LED2);
 DigitalOut myled3(LED3);//-------------------------
 BufferedSerial pc(USBTX, USBRX);
+EventQueue queue(32 * EVENTS_EVENT_SIZE);
 
 uLCD_4DGL uLCD(D1, D0, D2);
 InterruptIn sw3(USER_BUTTON);
 Thread t0;
 Thread t1;
 Thread t2;
+Thread t3;
 
 void gesture(Arguments *in, Reply *out);
 void tilt(Arguments *in, Reply *out);
@@ -111,12 +113,14 @@ void choose_angle()
         uLCD.printf("\n60 is selected\n");
     else if(angle_index==4)
         uLCD.printf("\n90 is selected\n");
+    return;
 }
 
 void dct()
 {
     function_index+=1;
     myled3=!myled3;
+    
     // Whether we should clear the buffer next time we fetch data
     bool should_clear_buffer = false;
     bool got_data = false;
@@ -240,7 +244,7 @@ void dct()
                     uLCD.printf("\n45\n");
                     uLCD.printf("\n60\n");
                     uLCD.printf("\n90\n");
-                    sw3.rise(choose_angle);
+                    sw3.rise(queue.event(choose_angle));
                 }
                 else if(angle_index==2)
                 {
@@ -251,7 +255,7 @@ void dct()
                     uLCD.printf("\n45 <--\n");
                     uLCD.printf("\n60\n");
                     uLCD.printf("\n90\n");
-                    sw3.rise(choose_angle);
+                    sw3.rise(queue.event(choose_angle));
                 }
                 else if(angle_index==3)
                 {
@@ -262,7 +266,7 @@ void dct()
                     uLCD.printf("\n45\n");
                     uLCD.printf("\n60 <--\n");
                     uLCD.printf("\n90\n");
-                    sw3.rise(choose_angle);
+                    sw3.rise(queue.event(choose_angle));
                 }
                 else if(angle_index==4)
                 {
@@ -273,7 +277,7 @@ void dct()
                     uLCD.printf("\n45\n");
                     uLCD.printf("\n60\n");
                     uLCD.printf("\n90 <--\n");
-                    sw3.rise(choose_angle);
+                    sw3.rise(queue.event(choose_angle));
                 }
             }
                 //error_reporter->Report(config.output_message[gesture_index]);
@@ -284,6 +288,9 @@ void dct()
 
 int main(int argc, char* argv[])
 {
+    function_index=0;
+    t3.start(callback(&queue, &EventQueue::dispatch_forever));
+
     uLCD.cls();
     uLCD.printf("\nSelection:\n"); //Default Green on black text
     uLCD.printf("\ngesture UI\n");
@@ -291,11 +298,7 @@ int main(int argc, char* argv[])
     
     myled3=0;
     t0.start(dct);
-/*
-    strcpy(bufff,"/gesture/run\n\r");
-    t1.start(choose_function);
-*/    
-    
+   
 }
 void gesture (Arguments *in, Reply *out)   {
     bool success = true;
@@ -318,8 +321,9 @@ void gesture (Arguments *in, Reply *out)   {
     uLCD.printf("\n45\n");
     uLCD.printf("\n60\n");
     uLCD.printf("\n90\n");
-
     t2.start(dct);
+    
+    return;
 }
 void tilt (Arguments *in, Reply *out)   {
     bool success = true;
