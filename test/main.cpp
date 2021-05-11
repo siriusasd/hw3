@@ -8,7 +8,7 @@
 #include "stm32l475e_iot01_accelero.h"
 #include "accelerometer_handler.h"
 
-#include "config.h"
+#include "tfconfig.h"
 #include "magic_wand_model_data.h"
 #include "tensorflow/lite/c/common.h"
 #include "tensorflow/lite/micro/kernels/micro_ops.h"
@@ -244,6 +244,7 @@ void dct()
                     uLCD.printf("\n45\n");
                     uLCD.printf("\n60\n");
                     uLCD.printf("\n90\n");
+
                     sw3.rise(queue.event(choose_angle));
                 }
                 else if(angle_index==2)
@@ -255,6 +256,7 @@ void dct()
                     uLCD.printf("\n45 <--\n");
                     uLCD.printf("\n60\n");
                     uLCD.printf("\n90\n");
+
                     sw3.rise(queue.event(choose_angle));
                 }
                 else if(angle_index==3)
@@ -266,6 +268,7 @@ void dct()
                     uLCD.printf("\n45\n");
                     uLCD.printf("\n60 <--\n");
                     uLCD.printf("\n90\n");
+
                     sw3.rise(queue.event(choose_angle));
                 }
                 else if(angle_index==4)
@@ -277,6 +280,7 @@ void dct()
                     uLCD.printf("\n45\n");
                     uLCD.printf("\n60\n");
                     uLCD.printf("\n90 <--\n");
+
                     sw3.rise(queue.event(choose_angle));
                 }
             }
@@ -298,7 +302,6 @@ int main(int argc, char* argv[])
     
     myled3=0;
     t0.start(dct);
-   
 }
 void gesture (Arguments *in, Reply *out)   {
     bool success = true;
