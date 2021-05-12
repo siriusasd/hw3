@@ -1,6 +1,3 @@
-#include <stdio.h>
-#include <string.h>
-
 #include "mbed.h"
 #include "uLCD_4DGL.h"
 #include "mbed_rpc.h"
@@ -42,6 +39,7 @@ BufferedSerial pc(USBTX, USBRX);
 
 Thread mqtt_thread(osPriorityHigh);
 EventQueue mqtt_queue;
+EventQueue queue;
 
 uLCD_4DGL uLCD(D1, D0, D2);
 InterruptIn sw3(USER_BUTTON);
@@ -49,19 +47,25 @@ InterruptIn sw3(USER_BUTTON);
 Thread t0;
 Thread t1;
 Thread t2;
+Thread t3;
+Thread t4;
 
 void gesture(Arguments *in, Reply *out);
 void gstop(Arguments *in, Reply *out);
 void tilt(Arguments *in, Reply *out);
+void getAcc(Arguments *in, Reply *out);
 RPCFunction gesture_UI(&gesture, "gesture");
 RPCFunction gestureUI_stop(&gstop, "gestureUI_stop");
 RPCFunction tilt_angle_detection(&tilt, "tilt");
+RPCFunction rpcAcc(&getAcc, "getAcc");
 char bufff[256];
 char buf5[256];
 char outbuf[256];
 int angle_index=0;
 int function_index=0;
 int angle=0;
+int mode=0;
+int indct=0;
 
 // Create an area of memory to use for input, output, and intermediate arrays.
 // The size of this will depend on the model you're using, and may need to be
@@ -112,6 +116,7 @@ int PredictGesture(float* output) {
 void choose_function()
 {
     memset(buf5, 0, 256);
+    memset(outbuf, 0, 256);
     strcpy(buf5,bufff);
     printf(buf5);
     
@@ -133,45 +138,50 @@ void messageArrived(MQTT::MessageData& md) {
 }
 
 void publish_message(MQTT::Client<MQTTNetwork, Countdown>* client) {
-    myled3=0;
-    
+    indct=1;
     uLCD.cls();
-    uLCD.printf("\ngesture UI:\n");
-    uLCD.printf("\nselect threshold angle\n");
-    if(angle_index==1)
+    if(mode==1)
     {
-        uLCD.printf("\n30 is selected\n");
-        angle=30;
-    }     
-    else if(angle_index==2)
-    {
-        uLCD.printf("\n45 is selected\n");
-        angle=45;
+        uLCD.printf("\ngesture UI:\n");
+        uLCD.printf("\nselect threshold angle\n");
+        if(angle_index==1)
+        {
+            uLCD.printf("\n30 is selected\n");
+            angle=30;
+        }     
+        else if(angle_index==2)
+        {
+            uLCD.printf("\n45 is selected\n");
+            angle=45;
+        }
+        else if(angle_index==3)
+        {
+            uLCD.printf("\n60 is selected\n");
+            angle=60;
+        } 
+        else if(angle_index==4)
+        {
+            uLCD.printf("\n90 is selected\n");
+            angle=90;
+        }    
+        
+        MQTT::Message message;
+        char buff[100];
+        sprintf(buff, "QoS0 Hello, selected threshold angle: %d", angle);
+        message.qos = MQTT::QOS0;
+        message.retained = false;
+        message.dup = false;
+        message.payload = (void*) buff;
+        message.payloadlen = strlen(buff) + 1;
+        int rc = client->publish(topic, message);
+        printf("rc:  %d\r\n", rc);
+        printf("Puslish message: %s\r\n", buff);
     }
-    else if(angle_index==3)
+/*    else if(mode==2)
     {
-        uLCD.printf("\n60 is selected\n");
-        angle=60;
-    } 
-    else if(angle_index==4)
-    {
-        uLCD.printf("\n90 is selected\n");
-        angle=90;
-    }    
-    
-    MQTT::Message message;
-    char buff[100];
-    sprintf(buff, "QoS0 Hello, selected threshold angle: %d", angle);
-    message.qos = MQTT::QOS0;
-    message.retained = false;
-    message.dup = false;
-    message.payload = (void*) buff;
-    message.payloadlen = strlen(buff) + 1;
-    int rc = client->publish(topic, message);
-
-    printf("rc:  %d\r\n", rc);
-    printf("Puslish message: %s\r\n", buff);
-
+        
+    }
+*/
     function_index=0;//---------------------------------------
 
     ThisThread::sleep_for(1s);
@@ -186,7 +196,6 @@ void close_mqtt() {
 
 void dct()
 {
-    
     function_index+=1;
     // Whether we should clear the buffer next time we fetch data
     bool should_clear_buffer = false;
@@ -259,7 +268,7 @@ void dct()
     //error_reporter->Report("Set up successful...\n");
 
     while (true) {
-
+        //myled3=1;
         // Attempt to read new data from the accelerometer
         got_data = ReadAccelerometer(error_reporter, model_input->data.f,
                                     input_length, should_clear_buffer);
@@ -286,17 +295,14 @@ void dct()
         should_clear_buffer = gesture_index < label_num;
 
         memset(bufff, 0, 256);
-
         // Produce an output
         if (gesture_index < label_num) 
         {
-            myled3=1;
+            //myled3=0;
             if(function_index==1)
             {
                 strcpy(bufff,config.output_message[gesture_index]);
                 t0.start(choose_function);
-
-                myled3=0;//-----------------------------------------------------------
 
                 break;
             }
@@ -306,7 +312,6 @@ void dct()
                     angle_index+=1;
                 else
                     angle_index=1;
-                //strcpy(bufff,config.output_message[gesture_index]);
                 if(angle_index==1)
                 {
                     uLCD.cls();
@@ -317,6 +322,10 @@ void dct()
                     uLCD.printf("\n60\n");
                     uLCD.printf("\n90\n");
                     sw3.rise(mqtt_queue.event(&publish_message, &client));
+                    if(indct==1)
+                    {
+                        break;
+                    }
                 }
                 else if(angle_index==2)
                 {
@@ -328,6 +337,10 @@ void dct()
                     uLCD.printf("\n60\n");
                     uLCD.printf("\n90\n");
                     sw3.rise(mqtt_queue.event(&publish_message, &client));
+                    if(indct==1)
+                    {
+                        break;
+                    }
                 }
                 else if(angle_index==3)
                 {
@@ -339,6 +352,10 @@ void dct()
                     uLCD.printf("\n60 <--\n");
                     uLCD.printf("\n90\n");
                     sw3.rise(mqtt_queue.event(&publish_message, &client));
+                    if(indct==1)
+                    {
+                        break;
+                    }
                 }
                 else if(angle_index==4)
                 {
@@ -350,11 +367,16 @@ void dct()
                     uLCD.printf("\n60\n");
                     uLCD.printf("\n90 <--\n");
                     sw3.rise(mqtt_queue.event(&publish_message, &client));
+                    if(indct==1)
+                    {
+                        break;
+                    }
                 }
             }
                 //error_reporter->Report(config.output_message[gesture_index]);
         }
     }
+    return;
 }
 
 void choose()
@@ -364,6 +386,40 @@ void choose()
     uLCD.printf("\ngesture UI\n");
     uLCD.printf("\ntilt angle detection\n");
     dct();
+}
+
+void init()
+{
+    //myled3=1;
+    uLCD.printf("\ninitializing...\n");
+    ThisThread::sleep_for(1s);
+    BSP_ACCELERO_Init();
+    uLCD.printf("\nfinished\n");
+    //myled3=0;
+    ThisThread::sleep_for(1s);
+    uLCD.printf("\nstart\n");
+    
+    char b5[256];
+    myled3=1;
+    memset(buf5, 0, 256);
+    memset(outbuf, 0, 256);
+    sprintf(buf5, "/getAcc/run\n\r");
+    strcpy(b5, buf5);
+    printf(b5);
+    
+    //Call the static call method on the RPC class
+    RPC::call(b5, outbuf);
+    printf("%s\r\n", outbuf);
+
+    return;
+}
+
+void getAcc(Arguments *in, Reply *out) {
+   int16_t pDataXYZ[3] = {0};
+        char buffer[200];
+   BSP_ACCELERO_AccGetXYZ(pDataXYZ);
+   sprintf(buffer, "Accelerometer values: (%d, %d, %d)", pDataXYZ[0], pDataXYZ[1], pDataXYZ[2]);
+   out->putData(buffer);
 }
 
 int main(int argc, char* argv[])
@@ -409,13 +465,14 @@ int main(int argc, char* argv[])
     }
 
     mqtt_thread.start(callback(&mqtt_queue, &EventQueue::dispatch_forever));
-    
+    t3.start(callback(&queue, &EventQueue::dispatch_forever));
+
     choose();
 }
 
 void gesture (Arguments *in, Reply *out)   {
     bool success = true;
-    
+    mode = 1;
     char strings[50];
     char buffer[200];
     sprintf(strings, "gestureUI mode\n");
@@ -441,6 +498,7 @@ void gesture (Arguments *in, Reply *out)   {
 void gstop(Arguments *in, Reply *out)
 {
     bool success = true;
+    mode = 0;
     char strings[50];
     char buffer[200];
     sprintf(strings, "gestureUI mode stopped\n\r");
@@ -458,7 +516,7 @@ void gstop(Arguments *in, Reply *out)
 
 void tilt (Arguments *in, Reply *out)   {
     bool success = true;
-
+    mode=2;
     char strings[50];
     char buffer[200];
     sprintf(strings, "tilt angle detection mode\n");
@@ -472,4 +530,6 @@ void tilt (Arguments *in, Reply *out)   {
     myled2=1;
     uLCD.cls();
     uLCD.printf("\ntilt angle detection\n");
+    sw3.fall(queue.event(&init));
+    return;
 }
