@@ -72,9 +72,10 @@ int mode=0;
 int indct=0;
 int eventNum=5;
 int counter=0;
-//int result=0;
 int id;
 double result;
+float arr[5];
+
 // Create an area of memory to use for input, output, and intermediate arrays.
 // The size of this will depend on the model you're using, and may need to be
 // determined by experimentation.
@@ -445,12 +446,18 @@ void getAcc(Arguments *in, Reply *out) {
     //printf("cbuf = %f\n\r", cbuf);
     result = asin(cbuf);
     result = (float)result*180/PI;
-    printf("%f degrees detected!!\n\r", result);
+    printf("%.3f degrees detected!!\n\r", result);
     
+    uLCD.cls();
+    uLCD.printf("\nCurrent Angle:\n");
+    uLCD.printf("\n%.3f\n", result);
+    ThisThread::sleep_for(1s);
+
     if(counter<eventNum)
     {
         if(result>=angle)
         {
+            arr[counter] = result;
             counter++;
             publish_message(&client);
         }
@@ -592,5 +599,11 @@ void t_stop(Arguments *in, Reply *out)
     }
 
     myled2=0;
+    uLCD.cls();
+    uLCD.printf("All Events:\n");
+    for(int i=0; i<eventNum; i++)
+    {
+        uLCD.printf("Event #%d \n\rangle = %.3f\n\n", i+1, arr[i]);
+    }
     return;
 }
