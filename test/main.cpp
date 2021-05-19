@@ -1,3 +1,5 @@
+#include <cmath>
+#define PI 3.1415926
 #include "mbed.h"
 #include "uLCD_4DGL.h"
 #include "mbed_rpc.h"
@@ -48,25 +50,31 @@ Thread t0;
 Thread t1;
 Thread t2;
 Thread t3;
-Thread t4;
 
 void gesture(Arguments *in, Reply *out);
 void gstop(Arguments *in, Reply *out);
 void tilt(Arguments *in, Reply *out);
+void t_stop(Arguments *in, Reply *out);
 void getAcc(Arguments *in, Reply *out);
+
 RPCFunction gesture_UI(&gesture, "gesture");
 RPCFunction gestureUI_stop(&gstop, "gestureUI_stop");
 RPCFunction tilt_angle_detection(&tilt, "tilt");
+RPCFunction tilt_stop(&t_stop, "tilt_stop");
 RPCFunction rpcAcc(&getAcc, "getAcc");
 char bufff[256];
 char buf5[256];
 char outbuf[256];
 int angle_index=0;
 int function_index=0;
-int angle=0;
+int angle=45;//-----------------------------------------
 int mode=0;
 int indct=0;
-
+int eventNum=5;
+int counter=0;
+//int result=0;
+int id;
+double result;
 // Create an area of memory to use for input, output, and intermediate arrays.
 // The size of this will depend on the model you're using, and may need to be
 // determined by experimentation.
@@ -123,6 +131,7 @@ void choose_function()
     //Call the static call method on the RPC class
     RPC::call(buf5, outbuf);
     printf("%s\r\n", outbuf);
+    return;
 }
 
 void messageArrived(MQTT::MessageData& md) {
@@ -176,18 +185,34 @@ void publish_message(MQTT::Client<MQTTNetwork, Countdown>* client) {
         int rc = client->publish(topic, message);
         printf("rc:  %d\r\n", rc);
         printf("Puslish message: %s\r\n", buff);
-    }
-/*    else if(mode==2)
-    {
         
-    }
-*/
-    function_index=0;//---------------------------------------
+        angle_index=0;
+        function_index=0;
+        mode=0;
+        indct=0;
+        ThisThread::sleep_for(1s);
+        sprintf(buf5,"/gestureUI_stop/run\n\r");
+        RPC::call(buf5, outbuf);
+        printf("%s\r\n", outbuf);
 
-    ThisThread::sleep_for(1s);
-    sprintf(buf5,"/gestureUI_stop/run\n\r");
-    RPC::call(buf5, outbuf);
-    printf("%s\r\n", outbuf);
+        return;
+    }
+    else if(mode==2)
+    {
+        MQTT::Message message;
+        char buff[100];
+        sprintf(buff, "QoS0 Hello, Event #%d\r\n", counter);
+        message.qos = MQTT::QOS0;
+        message.retained = false;
+        message.dup = false;
+        message.payload = (void*) buff;
+        message.payloadlen = strlen(buff) + 1;
+        int rc = client->publish(topic, message);
+        printf("rc:  %d\r\n", rc);
+        printf("Puslish message: %s\r\n", buff);
+        return;
+    }
+
 }
 
 void close_mqtt() {
@@ -268,7 +293,12 @@ void dct()
     //error_reporter->Report("Set up successful...\n");
 
     while (true) {
-        //myled3=1;
+        //myled3=0;
+        if(indct==1)
+        {
+            //myled3=1;
+            break;
+        }
         // Attempt to read new data from the accelerometer
         got_data = ReadAccelerometer(error_reporter, model_input->data.f,
                                     input_length, should_clear_buffer);
@@ -303,7 +333,6 @@ void dct()
             {
                 strcpy(bufff,config.output_message[gesture_index]);
                 t0.start(choose_function);
-
                 break;
             }
             else if(function_index==2)
@@ -322,10 +351,6 @@ void dct()
                     uLCD.printf("\n60\n");
                     uLCD.printf("\n90\n");
                     sw3.rise(mqtt_queue.event(&publish_message, &client));
-                    if(indct==1)
-                    {
-                        break;
-                    }
                 }
                 else if(angle_index==2)
                 {
@@ -337,10 +362,6 @@ void dct()
                     uLCD.printf("\n60\n");
                     uLCD.printf("\n90\n");
                     sw3.rise(mqtt_queue.event(&publish_message, &client));
-                    if(indct==1)
-                    {
-                        break;
-                    }
                 }
                 else if(angle_index==3)
                 {
@@ -352,10 +373,6 @@ void dct()
                     uLCD.printf("\n60 <--\n");
                     uLCD.printf("\n90\n");
                     sw3.rise(mqtt_queue.event(&publish_message, &client));
-                    if(indct==1)
-                    {
-                        break;
-                    }
                 }
                 else if(angle_index==4)
                 {
@@ -367,13 +384,9 @@ void dct()
                     uLCD.printf("\n60\n");
                     uLCD.printf("\n90 <--\n");
                     sw3.rise(mqtt_queue.event(&publish_message, &client));
-                    if(indct==1)
-                    {
-                        break;
-                    }
                 }
             }
-                //error_reporter->Report(config.output_message[gesture_index]);
+            //error_reporter->Report(config.output_message[gesture_index]);
         }
     }
     return;
@@ -381,26 +394,20 @@ void dct()
 
 void choose()
 {
+    //myled3=1;
     uLCD.cls();
     uLCD.printf("\nSelection:\n"); //Default Green on black text
     uLCD.printf("\ngesture UI\n");
     uLCD.printf("\ntilt angle detection\n");
+    //myled3=0;
     dct();
 }
 
-void init()
+void detect()
 {
     //myled3=1;
-    uLCD.printf("\ninitializing...\n");
-    ThisThread::sleep_for(1s);
-    BSP_ACCELERO_Init();
-    uLCD.printf("\nfinished\n");
-    //myled3=0;
-    ThisThread::sleep_for(1s);
-    uLCD.printf("\nstart\n");
-    
     char b5[256];
-    myled3=1;
+    myled3=0;
     memset(buf5, 0, 256);
     memset(outbuf, 0, 256);
     sprintf(buf5, "/getAcc/run\n\r");
@@ -410,16 +417,52 @@ void init()
     //Call the static call method on the RPC class
     RPC::call(b5, outbuf);
     printf("%s\r\n", outbuf);
+    //myled3=0;
+}
+
+void init()
+{
+    uLCD.printf("\ninitializing...\n");
+    ThisThread::sleep_for(1s);
+    BSP_ACCELERO_Init();
+    uLCD.printf("\nfinished\n");
+    ThisThread::sleep_for(1s);
+    uLCD.printf("\nstart\n");
+    
+    id = queue.call_every(1s, detect);
 
     return;
 }
 
 void getAcc(Arguments *in, Reply *out) {
-   int16_t pDataXYZ[3] = {0};
+    int16_t pDataXYZ[3] = {0};
         char buffer[200];
-   BSP_ACCELERO_AccGetXYZ(pDataXYZ);
-   sprintf(buffer, "Accelerometer values: (%d, %d, %d)", pDataXYZ[0], pDataXYZ[1], pDataXYZ[2]);
-   out->putData(buffer);
+    BSP_ACCELERO_AccGetXYZ(pDataXYZ);
+    sprintf(buffer, "Accelerometer values: (%d, %d, %d)", pDataXYZ[0], pDataXYZ[1], pDataXYZ[2]);
+    out->putData(buffer);
+    
+    float cbuf = (float)pDataXYZ[2]/(-980);
+    //printf("cbuf = %f\n\r", cbuf);
+    result = asin(cbuf);
+    result = (float)result*180/PI;
+    printf("%f degrees detected!!\n\r", result);
+    
+    if(counter<eventNum)
+    {
+        if(result>=angle)
+        {
+            counter++;
+            publish_message(&client);
+        }
+    }
+    else
+    {
+        queue.cancel(id);
+        sprintf(buf5,"/tilt_stop/run\n\r");
+        RPC::call(buf5, outbuf);
+    }
+
+    return;
 }
 
 int main(int argc, char* argv[])
@@ -510,9 +553,9 @@ void gstop(Arguments *in, Reply *out)
     }
 
     myled1=0;
-    t2.start(choose);
     return;
 }
+
 
 void tilt (Arguments *in, Reply *out)   {
     bool success = true;
@@ -531,5 +574,23 @@ void tilt (Arguments *in, Reply *out)   {
     uLCD.cls();
     uLCD.printf("\ntilt angle detection\n");
     sw3.fall(queue.event(&init));
+    return;
+}
+
+void t_stop(Arguments *in, Reply *out)
+{
+    bool success = true;
+    mode = 0;
+    char strings[50];
+    char buffer[200];
+    sprintf(strings, "tilt angle detection mode stopped\n\r");
+    strcpy(buffer, strings);
+    if (success) {
+        out->putData(buffer);
+    } else {
+        out->putData("Failed to execute.");
+    }
+
+    myled2=0;
     return;
 }
