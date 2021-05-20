@@ -67,7 +67,7 @@ char buf5[256];
 char outbuf[256];
 int angle_index=0;
 int function_index=0;
-int angle=45;//-----------------------------------------
+int angle=0;//-----------------------------------------
 int mode=0;
 int indct=0;
 int eventNum=5;
@@ -75,6 +75,7 @@ int counter=0;
 int id;
 double result;
 float arr[5];
+int endsig=1;
 
 // Create an area of memory to use for input, output, and intermediate arrays.
 // The size of this will depend on the model you're using, and may need to be
@@ -191,6 +192,8 @@ void publish_message(MQTT::Client<MQTTNetwork, Countdown>* client) {
         function_index=0;
         mode=0;
         indct=0;
+        memset(buf5, 0, 256);
+        memset(outbuf, 0, 256);
         ThisThread::sleep_for(1s);
         sprintf(buf5,"/gestureUI_stop/run\n\r");
         RPC::call(buf5, outbuf);
@@ -276,7 +279,7 @@ void dct()
     // Obtain pointer to the model's input tensor
     TfLiteTensor* model_input = interpreter->input(0);
     if ((model_input->dims->size != 4) || (model_input->dims->data[0] != 1) ||
-        (model_input->dims->data[1] != config.seq_length) ||
+        (model_input->dims->data[1] != config.seq_length)||
         (model_input->dims->data[2] != kChannelNumber) ||
         (model_input->type != kTfLiteFloat32)) {
         error_reporter->Report("Bad input tensor parameters in model");
@@ -429,7 +432,7 @@ void init()
     uLCD.printf("\nfinished\n");
     ThisThread::sleep_for(1s);
     uLCD.printf("\nstart\n");
-    
+
     id = queue.call_every(1s, detect);
 
     return;
@@ -449,6 +452,7 @@ void getAcc(Arguments *in, Reply *out) {
     printf("%.3f degrees detected!!\n\r", result);
     
     uLCD.cls();
+    uLCD.printf("\nThreshold Angle = %d\n", angle);
     uLCD.printf("\nCurrent Angle:\n");
     uLCD.printf("\n%.3f\n", result);
     ThisThread::sleep_for(1s);
@@ -465,6 +469,8 @@ void getAcc(Arguments *in, Reply *out) {
     else
     {
         queue.cancel(id);
+        memset(buf5, 0, 256);
+        memset(outbuf, 0, 256);
         sprintf(buf5,"/tilt_stop/run\n\r");
         RPC::call(buf5, outbuf);
     }
@@ -560,6 +566,17 @@ void gstop(Arguments *in, Reply *out)
     }
 
     myled1=0;
+
+    memset(buf5, 0, 256);
+    memset(outbuf, 0, 256);
+    ThisThread::sleep_for(1s);
+
+    sprintf(buf5,"/tilt/run\n\r");
+    RPC::call(buf5, outbuf);
+    printf("%s\r\n", outbuf);
+
+    //endsig=1;
+    
     return;
 }
 
