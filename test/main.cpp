@@ -409,7 +409,7 @@ void choose()
 
 void detect()
 {
-    //myled3=1;
+    myled3=1;
     char b5[256];
     myled3=0;
     memset(buf5, 0, 256);
@@ -421,15 +421,17 @@ void detect()
     //Call the static call method on the RPC class
     RPC::call(b5, outbuf);
     printf("%s\r\n", outbuf);
-    //myled3=0;
+    myled3=0;
 }
 
 void init()
 {
+    myled3=1;
     uLCD.printf("\ninitializing...\n");
     ThisThread::sleep_for(1s);
     BSP_ACCELERO_Init();
     uLCD.printf("\nfinished\n");
+    myled3=0;
     ThisThread::sleep_for(1s);
     uLCD.printf("\nstart\n");
 
